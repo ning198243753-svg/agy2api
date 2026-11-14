@@ -75,6 +75,9 @@ async def get_config(token: str = Depends(verify_panel_token)):
         # 凭证选择模式
         current_config["credential_select_mode"] = await config.get_credential_select_mode()
 
+        # 单账号并发限制
+        current_config["account_concurrency"] = await config.get_account_concurrency()
+
         # 服务器配置
         current_config["host"] = await config.get_server_host()
         current_config["port"] = await config.get_server_port()
@@ -244,6 +247,16 @@ async def save_config(request: ConfigSaveRequest, token: str = Depends(verify_pa
             mode = new_config["credential_select_mode"]
             if mode not in ("random", "cache", "sticky"):
                 raise HTTPException(status_code=400, detail="凭证选择模式必须是 random / cache / sticky")
+
+        # 验证单账号并发上限
+        if "account_concurrency" in new_config:
+            value = new_config["account_concurrency"]
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise HTTPException(status_code=400, detail="单账号并发上限必须是数字（0 表示不限制）")
+            value = int(value)
+            if value < 0 or value > 500:
+                raise HTTPException(status_code=400, detail="单账号并发上限必须在 0-500 之间（0 表示不限制）")
+            new_config["account_concurrency"] = value
 
         # 验证服务器配置
         if "host" in new_config:

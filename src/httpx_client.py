@@ -19,6 +19,7 @@ from fastapi import Response
 
 from config import get_proxy_config
 from log import log
+from src import acct_limit
 
 # ====================== 共享客户端 ======================
 
@@ -136,13 +137,18 @@ async def post_async(
     json: Any = None,
     headers: Optional[Dict[str, str]] = None,
     timeout: float = 900.0,
+    slot_key: Optional[str] = None,
     **kwargs,
 ) -> httpx.Response:
-    """通用异步POST请求"""
-    client = await _get_shared_client()
-    return await client.post(
-        url, data=data, json=json, headers=headers, timeout=timeout, **kwargs
-    )
+    """通用异步POST请求
+
+    slot_key: 传入凭证 email 时，按账号并发上限排队（见 src/acct_limit.py）
+    """
+    async with acct_limit.slot(slot_key or ""):
+        client = await _get_shared_client()
+        return await client.post(
+            url, data=data, json=json, headers=headers, timeout=timeout, **kwargs
+        )
 
 
 # 调试用：设为 True 时所有流式请求都返回 429
@@ -153,9 +159,13 @@ async def stream_post_async(
     body: Dict[str, Any],
     native: bool = False,
     headers: Optional[Dict[str, str]] = None,
+    slot_key: Optional[str] = None,
     **kwargs,
 ):
-    """流式异步POST请求"""
+    """流式异步POST请求
+
+    slot_key: 传入凭证 email 时，整个流（直到消费结束）占一个账号并发槽位
+    """
     if _MOCK_STREAM_429:
         log.warning(f"[MOCK] stream_post_async: 返回模拟429错误")
         yield Response(
@@ -164,21 +174,22 @@ async def stream_post_async(
         )
         return
 
-    client = await _get_shared_client()
-    async with client.stream(
-        "POST", url, json=body, headers=headers, **kwargs
-    ) as r:
-        # 错误直接返回
-        if r.status_code != 200:
-            yield Response(await r.aread(), r.status_code, dict(r.headers))
-            return
+    async with acct_limit.slot(slot_key or ""):
+        client = await _get_shared_client()
+        async with client.stream(
+            "POST", url, json=body, headers=headers, **kwargs
+        ) as r:
+            # 错误直接返回
+            if r.status_code != 200:
+                yield Response(await r.aread(), r.status_code, dict(r.headers))
+                return
 
-        # 如果native=True，直接返回bytes流
-        if native:
-            async for chunk in r.aiter_bytes():
-                yield chunk
-        else:
-            # 通过aiter_lines转化成str流返回
-            async for line in r.aiter_lines():
-                yield line
+            # 如果native=True，直接返回bytes流
+            if native:
+                async for chunk in r.aiter_bytes():
+                    yield chunk
+            else:
+                # 通过aiter_lines转化成str流返回
+                async for line in r.aiter_lines():
+                    yield line
 

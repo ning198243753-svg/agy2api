@@ -738,6 +738,26 @@ async def get_credential_select_mode() -> str:
     return value
 
 
+async def get_account_concurrency() -> int:
+    """
+    单账号（同一凭证 email）最大并发请求数。
+
+    0 表示不限制（默认，保持原生行为）。
+    超出的请求会在进程内排队等待，直到有槽位释放；流式请求的槽位
+    持续到该流结束。见 src/acct_limit.py。
+
+    Environment variable: ACCOUNT_CONCURRENCY
+    Database config key: account_concurrency
+    Default: 0（不限制）
+    """
+    value = await get_config_value("account_concurrency", 0, "ACCOUNT_CONCURRENCY")
+    try:
+        return max(0, int(float(value)))
+    except (TypeError, ValueError):
+        log.warning(f"无效的账号并发上限: {value!r}，回落为 0（不限制）")
+        return 0
+
+
 async def get_oauth_proxy_url() -> str:
     """
     Get OAuth proxy URL setting.

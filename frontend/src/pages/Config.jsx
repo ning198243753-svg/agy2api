@@ -160,6 +160,17 @@ const CONFIG_GROUPS = [
     ],
   },
   {
+    title: "并发控制",
+    fields: [
+      {
+        key: "account_concurrency",
+        label: "单账号并发上限",
+        type: "number",
+        note: "同一账号（凭证）同时发往上游的请求数上限，超出的请求排队等待，0 表示不限制。流式请求从开始到结束占用一个名额。保存后 5 秒内生效，无需重启",
+      },
+    ],
+  },
+  {
     title: "响应配置",
     fields: [
       { key: "return_thoughts_to_frontend", label: "返回思维链到前端", type: "bool", note: "启用后思维链会在响应中返回；禁用后过滤掉" },

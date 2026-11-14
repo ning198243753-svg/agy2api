@@ -475,7 +475,8 @@ async def stream_request(
                 url=target_url,
                 body=final_payload,
                 native=native,
-                headers=auth_headers
+                headers=auth_headers,
+                slot_key=current_file,
             ):
                 # 判断是否是Response对象
                 if isinstance(chunk, Response):
@@ -839,7 +840,8 @@ async def non_stream_request(
             response = await post_async(
                 url=target_url,
                 json=final_payload,
-                headers=auth_headers
+                headers=auth_headers,
+                slot_key=current_file,
             )
 
             status_code = response.status_code
